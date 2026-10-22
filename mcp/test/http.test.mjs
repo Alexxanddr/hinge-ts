@@ -13,6 +13,20 @@ async function startServer(env = {}) {
   return { http, context };
 }
 
+test("refuses non-loopback HTTP without authentication", async () => {
+  await assert.rejects(startServer({ HINGE_MCP_HOST: "0.0.0.0" }), /HINGE_MCP_TOKEN is required/);
+});
+
+test("malformed path encoding returns 400 and leaves the server available", async () => {
+  const { http } = await startServer({ HINGE_MCP_TOKEN: "secret" });
+  try {
+    assert.equal((await fetch(`${http.url}/%FF`)).status, 400);
+    assert.equal((await fetch(http.url.replace("/mcp", "/healthz"))).status, 200);
+  } finally {
+    await http.close();
+  }
+});
+
 test("http transport serves health and rejects missing bearer tokens", async () => {
   const { http } = await startServer({ HINGE_MCP_TOKEN: "secret" });
   try {

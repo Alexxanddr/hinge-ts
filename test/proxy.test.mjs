@@ -16,6 +16,7 @@ test("forwards rest proxy requests", async () => {
     fetch: async (url, init) => {
       assert.equal(String(url), "https://prod-api.hingeaws.net/likelimit");
       assert.equal(init.method, "GET");
+      assert.equal(init.redirect, "error");
       assert.equal(init.headers.authorization, "Bearer token");
       return new Response(JSON.stringify({ likes: 8 }), {
         status: 200,
@@ -54,6 +55,20 @@ test("rejects disallowed upstream hosts", async () => {
   }));
 
   assert.equal(response.status, 400);
+});
+
+test("cancels oversized streams before buffering the full request", async () => {
+  let cancelled = false;
+  const handler = createHingeRestProxyHandler({ maxBodyBytes: 16 });
+  const stream = new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array(32)); },
+    cancel() { cancelled = true; }
+  });
+  const response = await handler(new Request("https://proxy.test/request", {
+    method: "POST", body: stream, duplex: "half"
+  }));
+  assert.equal(response.status, 400);
+  assert.equal(cancelled, true);
 });
 
 test("encodes byte responses as base64 json", async () => {

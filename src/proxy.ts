@@ -66,7 +66,9 @@ export function createHingeRestProxyHandler(options: HingeProxyOptions = {}) {
 
     const init: RequestInit = {
       method: body.method,
-      headers: body.headers
+      headers: body.headers,
+      // An allowed host must never redirect credentials or requests to another host.
+      redirect: "error"
     };
     if (body.body !== undefined) {
       init.body = JSON.stringify(body.body);
@@ -150,10 +152,29 @@ export function withCors(response: Response, request: Request, options: HingePro
 }
 
 async function readProxyBody(request: Request, maxBodyBytes = 1_000_000): Promise<HingeProxyRequestBody> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > maxBodyBytes) {
-    throw new Error("request body too large");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = request.body?.getReader();
+  if (reader) {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBodyBytes) {
+          await reader.cancel();
+          throw new Error("request body too large");
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  const text = new TextDecoder().decode(bytes);
   const parsed = JSON.parse(text) as Partial<HingeProxyRequestBody>;
   if (!parsed || typeof parsed !== "object") {
     throw new Error("request body must be an object");
@@ -187,7 +208,7 @@ function safeUpstreamUrl(value: string, options: HingeProxyOptions): URL | undef
   } catch {
     return undefined;
   }
-  if (url.protocol !== "https:") {
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443")) {
     return undefined;
   }
   return isAllowedHingeProxyHost(url.hostname, options) ? url : undefined;

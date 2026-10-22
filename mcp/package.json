@@ -26,7 +26,7 @@
     "start:http": "node dist/cli.js --http"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "hinge-ts": "file:..",
     "zod": "^3.25.0"
   },

@@ -15,13 +15,27 @@ export const MCP_PATH = "/mcp";
 export function createHttpHandler(context: HingeMcpContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const token = context.config.token;
   return async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://localhost");
+    } catch {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid request URL" }));
+      return;
+    }
     if (url.pathname === "/healthz" || url.pathname === "/") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, name: "hinge-mcp", mcp: MCP_PATH }));
       return;
     }
-    const pathToken = url.pathname.startsWith(`${MCP_PATH}/`) ? decodeURIComponent(url.pathname.slice(MCP_PATH.length + 1)) : undefined;
+    let pathToken: string | undefined;
+    try {
+      pathToken = url.pathname.startsWith(`${MCP_PATH}/`) ? decodeURIComponent(url.pathname.slice(MCP_PATH.length + 1)) : undefined;
+    } catch {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid path encoding" }));
+      return;
+    }
     if (url.pathname !== MCP_PATH && pathToken === undefined) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "not found" }));
@@ -59,7 +73,7 @@ export function createHttpHandler(context: HingeMcpContext): (req: IncomingMessa
 export async function startHttpServer(context: HingeMcpContext): Promise<{ close(): Promise<void>; url: string }> {
   const { host, port, token } = context.config;
   if (!token && !isLoopback(host)) {
-    process.stderr.write("hinge-mcp: HINGE_MCP_TOKEN is not set while binding a non-loopback host; anyone who can reach this port can drive the account\n");
+    throw new Error("HINGE_MCP_TOKEN is required when binding a non-loopback host");
   }
   const handler = createHttpHandler(context);
   const httpServer = createServer((req, res) => {

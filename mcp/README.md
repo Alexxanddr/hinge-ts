@@ -60,6 +60,8 @@ The HTTP mode listens on `http://127.0.0.1:3939/mcp` by default and serves
 | `HINGE_MCP_ALLOW_RAW` | `0` | `1` exposes `hinge_raw_request` |
 | `HINGE_MCP_TOKEN` | unset | Bearer token required by the HTTP transport (also accepted as `/mcp/<token>`) |
 | `HINGE_MCP_HOST` | `127.0.0.1` | HTTP bind host |
+
+Binding to a non-loopback host requires `HINGE_MCP_TOKEN`; the server refuses to start without it.
 | `HINGE_MCP_PORT` | `3939` | HTTP port (`--http <port>` overrides it) |
 | `HINGE_MCP_DEBUG` | `0` | `1` logs redacted requests to stderr |
 
